@@ -19,7 +19,7 @@ public class Consumer extends Thread {
     }
 
     public void run() {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             int portionSize = pc.get_portion_size();
             if (algo_version == Version.NAIVE) {
                 run_naive_consumer(portionSize);
