@@ -27,7 +27,8 @@ public class Producer extends Thread {
                 run_fair_producer(portionSize);
             }
         }
-        ProducerConsumer.decreaseRemainingProds();
+        Buffer.decreaseRemainingProds();
+        System.out.println(Thread.currentThread().getId() + " papa");
     }
 }
 

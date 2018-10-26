@@ -1,3 +1,5 @@
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -12,10 +14,12 @@ public class Buffer {
     private final Condition RESZTAPROD;
     private final Condition PIERWSZYKONS;
     private final Condition RESZTAKONS;
-    private boolean pk;
-    private boolean pp;
+    private AtomicBoolean pk;
+    private AtomicBoolean pp;
+    public static AtomicInteger remainingProds;
+    public static AtomicInteger remainingCons;
 
-    Buffer(int size, DataKeeper dataKeeper) {
+    Buffer(int size, DataKeeper dataKeeper, int num_PK) {
         this.buffer = new int[size];
         this.availablePortionSize = this.takePtr = this.putPtr = 0;
         this.dataKeeper = dataKeeper;
@@ -23,14 +27,26 @@ public class Buffer {
         this.PIERWSZYPROD = lock.newCondition();
         this.RESZTAKONS = lock.newCondition();
         this.RESZTAPROD = lock.newCondition();
-        pk = pp = false;
+        pk = new AtomicBoolean(false);
+        pp = new AtomicBoolean(false);
+        remainingCons = new AtomicInteger(num_PK);
+        remainingProds = new AtomicInteger(num_PK);
+    }
+
+    public synchronized static void decreaseRemainingProds() {
+        System.out.println(remainingProds.decrementAndGet() + " remaining prods");
+    }
+
+    public synchronized static void decreaseRemainingCons() {
+        System.out.println(remainingCons.decrementAndGet() + " remaining cons");
     }
 
     public synchronized void put_naive(int portionSize) {
         long begin_wait = System.nanoTime();
+
         while (portionSize > (this.buffer.length - availablePortionSize)) {
             try {
-                if (ProducerConsumer.remainingCons.get() == 0) {
+                if (remainingCons.get() == 0) {
                     return;
                 }
                 wait();
@@ -55,7 +71,7 @@ public class Buffer {
         long begin_wait = System.nanoTime();
         while (portionSize > availablePortionSize) {
             try {
-                if (ProducerConsumer.remainingProds.get() == 0) {
+                if (remainingProds.get() == 0) {
                     return;
                 }
                 wait();
@@ -77,25 +93,29 @@ public class Buffer {
     }
 
     public void take_fair(int portionSize) {
-        lock.lock();
-//        System.out.println(String.format("BEGIN\tConsumer #%d - avaliable portion size: %d - want %d",
-//                Thread.currentThread().getId(),
-//                availablePortionSize, portionSize));
-
         long begin_wait = System.nanoTime();
+
+        lock.lock();
+        System.out.println(String.format("BEGIN\tConsumer #%d - avaliable portion size: %d - want %d",
+                Thread.currentThread().getId(),
+                availablePortionSize, portionSize));
+
         try {
-            if (pk) {
+            if (pk.get()) {
                 RESZTAKONS.await();
             }
 
-            pk = true;
+            pk.set(true);
             while (portionSize > availablePortionSize) {
-                if (ProducerConsumer.remainingProds.get() == 0) {
+                if (remainingProds.get() == 0) {
+                    System.out.println(Thread.currentThread().getId() + " !!!!!!!!!!!!!!! nie ma prod");
+
                     System.out.println(String.format("END\tThis was thread #%d - available portion size: %d",
                             Thread.currentThread().getId(),
                             availablePortionSize));
+                    pk.set(false);
+
                     if (lock.isHeldByCurrentThread()) {
-                        pk = false;
                         RESZTAKONS.signalAll();
                         PIERWSZYPROD.signalAll();
                         lock.unlock();
@@ -107,14 +127,14 @@ public class Buffer {
             long end_wait = System.nanoTime();
             dataKeeper.updateConsumerEntry(portionSize, end_wait - begin_wait);
 
-//            System.out.println(String.format("WAKE\tConsumer #%d - I woke up", Thread.currentThread().getId()));
+            System.out.println(String.format("WAKE\tConsumer #%d - I woke up", Thread.currentThread().getId()));
 
             for (int i = 0; i < portionSize; i++) {
                 buffer[takePtr] = 0;
                 takePtr = (takePtr + 1) % buffer.length;
                 availablePortionSize--;
             }
-            pk = false;
+            pk.set(false);
             RESZTAKONS.signalAll();
             PIERWSZYPROD.signalAll();
 
@@ -126,29 +146,31 @@ public class Buffer {
             }
         }
 
-//        System.out.println(String.format("END\tThis was thread #%d - available portion size: %d",
-//                Thread.currentThread().getId(),
-//                availablePortionSize));
+        System.out.println(String.format("END\tThis was thread #%d - available portion size: %d",
+                Thread.currentThread().getId(),
+                availablePortionSize));
     }
 
     public void put_fair(int portionSize) {
-        lock.lock();
-//        System.out.println(String.format("BEGIN\tProducer #%d - free space size: %d - want %d", Thread.currentThread().getId(),
-//                (this.buffer.length - availablePortionSize), portionSize));
-        try {
-            long begin_wait = System.nanoTime();
+        long begin_wait = System.nanoTime();
 
-            if (pp) {
+        lock.lock();
+        System.out.println(String.format("BEGIN\tProducer #%d - free space size: %d - want %d", Thread.currentThread().getId(),
+                (this.buffer.length - availablePortionSize), portionSize));
+        try {
+
+            if (pp.get()) {
                 RESZTAPROD.await();
             }
 
-            pp = true;
+            pp.set(true);
             while (portionSize > (this.buffer.length - availablePortionSize)) {
 
-                if (ProducerConsumer.remainingCons.get() == 0) {
-                    System.out.println("!!!!!!!!!!!!!!!");
+                if (remainingCons.get() == 0) {
+                    System.out.println(Thread.currentThread().getId() + " !!!!!!!!!!!!!!! nie ma kons");
+                    pp.set(false);
+
                     if (lock.isHeldByCurrentThread()) {
-                        pp = false;
                         PIERWSZYKONS.signalAll();
                         RESZTAPROD.signalAll();
                         lock.unlock();
@@ -163,8 +185,8 @@ public class Buffer {
             long end_wait = System.nanoTime();
             dataKeeper.updateConsumerEntry(portionSize, end_wait - begin_wait);
 
-//            System.out.println(String.format("WAKE\tProducer #%d - I woke up - waited %d",
-//                    Thread.currentThread().getId(), end_wait - begin_wait));
+            System.out.println(String.format("WAKE\tProducer #%d - I woke up - waited %d",
+                    Thread.currentThread().getId(), end_wait - begin_wait));
 
             for (int i = 0; i < portionSize; i++) {
                 buffer[putPtr] = 1;
@@ -172,7 +194,7 @@ public class Buffer {
                 availablePortionSize++;
             }
 
-            pp = false;
+            pp.set(false);
             PIERWSZYKONS.signalAll();
             RESZTAPROD.signalAll();
 
@@ -183,9 +205,9 @@ public class Buffer {
                 lock.unlock();
             }
         }
-//        System.out.println(String.format("END\tProducer #%d - free space size: %d - available portion size: %d",
-//                Thread.currentThread().getId(),
-//                (this.buffer.length - availablePortionSize), availablePortionSize));
+        System.out.println(String.format("END\tProducer #%d - free space size: %d - available portion size: %d",
+                Thread.currentThread().getId(),
+                (this.buffer.length - availablePortionSize), availablePortionSize));
     }
 }
 

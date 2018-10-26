@@ -1,5 +1,3 @@
-import java.util.ArrayList;
-
 public class DataKeeper {
     class Entry {
         public long getNanoseconds_wait_time_sum() {
@@ -66,13 +64,5 @@ public class DataKeeper {
 
 
     }
-
-//    public void printTable() {
-//
-//        for (int i = 0; i < this.measurements.length; i++) {
-//            System.out.println(i+1 + " " + this.measurements[i].getNanoseconds_wait_time_sum() + " " + this.measurements[i].getThreads_counter());
-//        }
-//
-//    }
 
 }

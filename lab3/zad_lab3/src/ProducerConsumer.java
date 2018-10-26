@@ -13,8 +13,7 @@ public class ProducerConsumer {
 //        return remainingCons;
 //    }
 
-    public static AtomicInteger remainingProds;
-    public static AtomicInteger remainingCons;
+
     private Version algo_version;
     private Version portion_version;
     private DataKeeper dataKeeper;
@@ -22,21 +21,10 @@ public class ProducerConsumer {
     public ProducerConsumer(int M, int num_PK, Version algo_version, Version portion_version, DataKeeper dataKeeper) {
         ProducerConsumer.M = M;
         this.num_P_K  = num_PK;
-        remainingCons = new AtomicInteger(num_PK);
-        remainingProds = new AtomicInteger(num_PK);
+
         this.algo_version = algo_version;
         this.portion_version = portion_version;
         this.dataKeeper = dataKeeper;
-    }
-
-    public static void decreaseRemainingProds() {
-        System.out.println(remainingProds.decrementAndGet() + " remaining prods");
-        System.out.println(remainingProds + " remaining prods");
-    }
-
-    public static void decreaseRemainingCons() {
-        System.out.println(remainingCons.decrementAndGet() + " remaining cons");
-        System.out.println(remainingCons + " remaining cons");
     }
 
     private int get_equal_probability_portion_size(Random rand) {
@@ -54,7 +42,7 @@ public class ProducerConsumer {
     }
 
     public void work() {
-        Buffer buffer = new Buffer(2*M, dataKeeper);
+        Buffer buffer = new Buffer(2*M, dataKeeper, num_P_K);
 
         Producer producers[] = new Producer[num_P_K];
         Consumer consumers[] = new Consumer[num_P_K];
