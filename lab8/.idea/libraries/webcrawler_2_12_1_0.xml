@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="webcrawler_2.12-1.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/out/production/main/webcrawler/target/scala-2.12/webcrawler_2.12-1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
